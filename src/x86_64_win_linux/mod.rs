@@ -4,6 +4,10 @@ mod linux_allocator;
 mod hf_alloc;
 pub use hf_alloc::*;
 
+mod hf_print;
+pub use hf_print::*;
+
+use alloc::vec::Vec;
 use core::arch::asm;
 
 #[cfg(not(test))]
@@ -42,25 +46,18 @@ fn panic(_info: &PanicInfo) -> ! {
 /// A beautiful, magical function that saves the r8 register, pops
 /// N values from the stack into a buffer, calls the provided function
 /// with the buffer, and restores the r8 register.
-fn hf_func_wrapper<const N: usize, F: FnOnce([u8; N], *mut u8) -> *mut u8>(f: F) {
+fn hf_func_wrapper<const N: usize, F: FnOnce([u8; N], *mut u8) -> *mut u8>(
+    r8: *mut *mut u8,
+    stack_ptr: *mut *mut u8,
+    f: F,
+) {
     let mut buffer = [0u8; N];
-    // TODO: Stop using pop here, we should read this the
-    //       same way IrOp::StackPop pops from the stack
     unsafe {
-        for i in 0..N {
-            // asm!("pop {}", out(reg_byte) buffer[i]);
-            asm!("mov al, byte ptr[rsp]");
-            asm!("mov {}, al", out(reg_byte) buffer[i]);
-            asm!("lea rsp, [rsp+1]");
-        }
-    }
-    let mut r8_value: *mut u8;
-    unsafe {
-        asm!("mov {}, r8", out(reg) r8_value);
-    }
-    r8_value = f(buffer, r8_value);
-    unsafe {
-        asm!("mov r8, {}", in(reg) r8_value);
+        let start_ptr = STACK.as_ptr() as u64;
+        let stack_index = (*stack_ptr as u64) - start_ptr;
+        buffer.copy_from_slice(&STACK[(stack_index - N as u64) as usize..stack_index as usize]);
+        *stack_ptr.wrapping_sub(N);
+        *r8 = f(buffer, *r8);
     }
 }
 
@@ -69,20 +66,28 @@ const MEM_SIZE_DEFAULT: usize = 50 * 1024 * 1024;
 static mut MEM_PTR: *mut u8 = core::ptr::null_mut();
 static mut MEM_SIZE: usize = MEM_SIZE_DEFAULT;
 
+static mut STACK: [u8; 1024] = [0u8; 1024];
+
 #[no_mangle]
-pub extern "C" fn hf_start() {
+pub extern "C" fn hf_start(r8: *mut *mut u8, stack_ptr: *mut *mut u8) {
+    unsafe {
+        *stack_ptr = STACK.as_mut_ptr();
+    }
+
     unsafe {
         MEM_PTR = alloc::alloc::alloc(alloc::alloc::Layout::from_size_align_unchecked(
             MEM_SIZE_DEFAULT,
             1,
         ));
 
-        asm!("mov r8, {}", in(reg) MEM_PTR as u64);
+        *r8 = MEM_PTR;
     }
 }
 
+/// We do return stack_ptr but it really doesn't matter, hf_exit_impl will
+/// never return anyway.
 #[no_mangle]
-pub extern "C" fn hf_exit() {
+pub extern "C" fn hf_exit(_r8: *mut *mut u8, _stack_ptr: *mut *mut u8) {
     unsafe {
         alloc::alloc::dealloc(
             MEM_PTR,

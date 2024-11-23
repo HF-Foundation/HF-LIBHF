@@ -1,5 +1,5 @@
 fn hf_alloc_impl(buffer: [u8; 4], r8: *mut u8) -> *mut u8 {
-    let size = u32::from_le_bytes(buffer) as usize;
+    let size = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]) as usize;
 
     unsafe {
         let new_size = super::MEM_SIZE + size;
@@ -15,6 +15,6 @@ fn hf_alloc_impl(buffer: [u8; 4], r8: *mut u8) -> *mut u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn hf_alloc() {
-    super::hf_func_wrapper(hf_alloc_impl);
+pub extern "C" fn hf_alloc(r8: *mut *mut u8, stack_ptr: *mut *mut u8) {
+    super::hf_func_wrapper(r8, stack_ptr, hf_alloc_impl)
 }
