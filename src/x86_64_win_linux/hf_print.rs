@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-fn hf_printchar_impl(buffer: [u8; 1], r8: *mut u8) -> *mut u8 {
+fn hf_printchar_impl(buffer: [u8; 1], r8: *mut u8, _: &mut *mut u8) -> *mut u8 {
     unsafe {
         asm!(
             "mov rax, 1",          // syscall: sys_write
@@ -16,7 +16,7 @@ fn hf_printchar_impl(buffer: [u8; 1], r8: *mut u8) -> *mut u8 {
     r8
 }
 
-fn hf_printflush_impl(buffer: [u8; 0], r8: *mut u8) -> *mut u8 {
+fn hf_printflush_impl(buffer: [u8; 0], r8: *mut u8, _: &mut *mut u8) -> *mut u8 {
     unsafe {
         asm!(
             "mov rax, 1",          // syscall: sys_write

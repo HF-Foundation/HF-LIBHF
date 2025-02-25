@@ -1,4 +1,4 @@
-fn hf_alloc_impl(buffer: [u8; 4], r8: *mut u8) -> *mut u8 {
+fn hf_alloc_impl(buffer: [u8; 4], r8: *mut u8, _: &mut *mut u8) -> *mut u8 {
     let size = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]) as usize;
 
     unsafe {
